@@ -9,7 +9,11 @@
     .DESCRIPTION
         The active directory is scanned for computer names and each computer is
         queried for its BitLocker encryption status. This data is then stored in
-        an Excel file and emailed to the user.
+        an Excel file, combined with the previously exported data, and emailed to the user.
+
+        Combining data from the last run with the current run allows the script
+        to collect data when clients are online and consolidate it with 
+        previously gathered data.
 
         Computers that the script is unable to query (offline, permissions, ..) 
         are disregarded and not included in the report.
@@ -31,9 +35,9 @@
     .PARAMETER SendMail.When
         Determines when an e-mail is sent to the end user.
         Valid options:
-        - OnlyWhenResultsAreFound : when no results are found no e-mail is sent
-        - Always                  : always sent an e-mail, even when no results 
-                                    are found
+        - Never   : No e-mail is sent. Useful for collecting data with 
+                    scheduled tasks and not spamming the user. 
+        - Always  : always sent an e-mail to the user
 #>
 
 [CmdLetBinding()]
