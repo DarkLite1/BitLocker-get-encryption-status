@@ -708,7 +708,15 @@ Describe 'when the script' {
                     Bcc         = $ScriptAdmin
                     Priority    = 'Normal'
                     Subject     = '2 BitLocker volumes'
-                    Message     = "*<p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>*"
+                    Message     = "*<p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>*
+                    *<th>BitLocker volumes</th>*
+                    *<td>Total</td>*2*
+                    *<td>Previous export</td>*1*
+                    *<th>TPM statuses</th>*
+                    *<td>Total</td>*2*
+                    *<td>Previous export</td>*1*
+                    *<th>Errors</th>*
+                    *<td>Total</td>*0*Check the attachment for details*"
                     Attachments = $testExcelLogFile.FullName
                 }
             }
@@ -732,6 +740,6 @@ Describe 'when the script' {
                     ($Message -like $testMail.Message)
                 }
             }
-        }
+        } -Tag test
     }
-} -Tag test
+}
