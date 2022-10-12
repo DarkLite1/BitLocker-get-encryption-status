@@ -300,36 +300,6 @@ Process {
         $Error.Clear()
         #endregion
 
-        #region Create Excel sheet 'Errors'
-        $data.Errors += $jobResults | Where-Object { $_.Error } | 
-        Select-Object -Property @{
-            Name       = 'ComputerName';
-            Expression = { $_.ComputerName }
-        },
-        'Error'
-
-        $M = 'Found {0} error{1} querying BitLocker volumes' -f 
-        $data.Errors.Count,
-        $(if ($data.Errors.Count -ne 1) { 's' })
-        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
-        
-        if ($data.Errors) {
-            $excelParams.WorksheetName = $excelParams.TableName = $ExcelWorksheetName.Errors
-            
-            $M = "Export {0} row{1} to Excel file '{2}' worksheet '{3}'" -f 
-            $data.Errors.Count, 
-            $(if ($data.Errors.Count -ne 1) { 's' }), 
-            $excelParams.Path,
-            $excelParams.WorksheetName
-            Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
-
-            
-            $data.Errors | Export-Excel @excelParams
-         
-            $mailParams.Attachments = $excelParams.Path
-        }
-        #endregion
-
         #region BitLocker volumes
 
         #region Convert job objects
@@ -517,6 +487,35 @@ Process {
         #endregion
 
         #endregion
+
+        #region Create Excel sheet 'Errors'
+        $data.Errors += $jobResults | Where-Object { $_.Error } | 
+        Select-Object -Property @{
+            Name       = 'ComputerName';
+            Expression = { $_.ComputerName }
+        },
+        'Error'
+        
+        $M = 'Found {0} error{1} querying BitLocker volumes' -f 
+        $data.Errors.Count,
+        $(if ($data.Errors.Count -ne 1) { 's' })
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                
+        if ($data.Errors) {
+            $excelParams.WorksheetName = $excelParams.TableName = $ExcelWorksheetName.Errors
+                    
+            $M = "Export {0} row{1} to Excel file '{2}' worksheet '{3}'" -f 
+            $data.Errors.Count, 
+            $(if ($data.Errors.Count -ne 1) { 's' }), 
+            $excelParams.Path,
+            $excelParams.WorksheetName
+            Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+                    
+            $data.Errors | Export-Excel @excelParams
+                 
+            $mailParams.Attachments = $excelParams.Path
+        }
+        #endregion        
     }
     Catch {
         Write-Warning $_
