@@ -27,7 +27,8 @@
         for computer objects.
 
     .PARAMETER SendMail.Header
-        The header to use in the e-mail sent to the end user.
+        The header to use in the e-mail sent to the users. If SendMail.Header
+        is not provided the ScriptName will be used.
 
     .PARAMETER SendMail.To
         List of e-mail addresses where to send the e-mail too.
@@ -140,21 +141,15 @@ Begin {
             if (-not ($mailWhen = $file.SendMail.When)) {
                 throw "Property 'SendMail.When' not found."
             }
+            if (-not ($sendMailHeader = $SendMail.Header)) {
+                $SendMailHeader = $ScriptName
+            }
             if (
                 $mailWhen -notMatch '^Always$|^Never$'
             ) {
                 throw "The value '$mailWhen' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used."
             }
             #endregion
-
-            $mailParams = @{
-                To        = $mailTo
-                Bcc       = $ScriptAdmin
-                Priority  = 'Normal'
-                LogFolder = $logParams.LogFolder
-                Header    = $ScriptName 
-                Save      = "$logFile - Mail.html"
-            }
         }
         catch {
             throw "Failed to import file '$ImportFile': $_"
@@ -169,6 +164,38 @@ Begin {
 }
 Process {
     Try {
+        $data = @{
+            Errors           = @()
+            BitLockerVolumes = @{
+                Previous = @()
+                Current  = @()
+                Updated  = @()
+            }
+            TpmStatuses      = @{
+                Previous = @()
+                Current  = @()
+                Updated  = @()
+            }
+        }
+
+        $excelParams = @{
+            Path          = "$logFile - State.xlsx"
+            WorksheetName = $null
+            TableName     = $null
+            AutoSize      = $true
+            FreezeTopRow  = $true
+            Verbose       = $false
+        }
+
+        $mailParams = @{
+            To        = $mailTo
+            Bcc       = $ScriptAdmin
+            Priority  = 'Normal'
+            LogFolder = $logParams.LogFolder
+            Header    = $sendMailHeader
+            Save      = "$logFile - Mail.html"
+        }
+
         #region Get AD computers
         [array]$computers = foreach ($ou in $adOus) {
             [array]$tmpComputers = Get-ADComputer -SearchBase $ou -Filter *
@@ -198,24 +225,6 @@ Process {
         }
         $lastExcelFile = Get-ChildItem @params | 
         Sort-Object 'CreationTime' | Select-Object -Last 1
-
-        $data = @{
-            BitLockerVolumes = @{
-                Previous = @()
-                Current  = @()
-                Updated  = @()
-            }
-            TpmStatuses      = @{
-                Previous = @()
-                Current  = @()
-                Updated  = @()
-            }
-        }
-
-        $previousExport = @{
-            BitLockerVolumes = @()
-            TpmStatuses      = @()
-        }
 
         if ($lastExcelFile) {
             $worksheets = Get-ExcelSheetInfo -Path $lastExcelFile.FullName
@@ -278,39 +287,33 @@ Process {
         $Error.Clear()
         #endregion
 
-        $excelParams = @{
-            Path          = "$logFile - State.xlsx"
-            WorksheetName = $null
-            TableName     = $null
-            AutoSize      = $true
-            FreezeTopRow  = $true
-            Verbose       = $false
-        }
-
         #region Create Excel sheet 'Errors'
-        [array]$bitLockerErrors = $jobResults | Where-Object { $_.Error } | 
+        $data.Errors += $jobResults | Where-Object { $_.Error } | 
         Select-Object -Property @{
             Name       = 'ComputerName';
             Expression = { $_.ComputerName }
         },
         'Error'
 
-        $M = 'Found {0} error{1} querying BitLocker volumes' -f $bitLockerErrors.Count,
-        $(if ($bitLockerErrors.Count -ne 1) { 's' })
+        $M = 'Found {0} error{1} querying BitLocker volumes' -f 
+        $data.Errors.Count,
+        $(if ($data.Errors.Count -ne 1) { 's' })
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
         
-        if ($bitLockerErrors) {
+        if ($data.Errors) {
             $excelParams.WorksheetName = $excelParams.TableName = $ExcelWorksheetName.Errors
             
             $M = "Export {0} row{1} to Excel file '{2}' worksheet '{3}'" -f 
-            $bitLockerErrors.Count, 
-            $(if ($bitLockerErrors.Count -ne 1) { 's' }), 
+            $data.Errors.Count, 
+            $(if ($data.Errors.Count -ne 1) { 's' }), 
             $excelParams.Path,
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
             
-            $bitLockerErrors | Export-Excel @excelParams
+            $data.Errors | Export-Excel @excelParams
+         
+            $mailParams.Attachments = $excelParams.Path
         }
         #endregion
 
@@ -409,6 +412,8 @@ Process {
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
             $data.BitLockerVolumes.Updated | Export-Excel @excelParams
+
+            $mailParams.Attachments = $excelParams.Path
         }
         #endregion
 
@@ -493,6 +498,8 @@ Process {
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
             $data.TpmStatuses.Updated | Export-Excel @excelParams
+
+            $mailParams.Attachments = $excelParams.Path
         }
         #endregion
 
@@ -512,84 +519,76 @@ End {
                 currentUsers  = $data.BitLockerVolumes.Current.Count
                 previousUsers = $data.BitLockerVolumes.Previous.Count
                 updatedUsers  = $data.BitLockerVolumes.Updated.Count
-                errors        = $Error.Count
+                errors        = $data.Errors.Count
             }
 
             #region Subject and Priority
-            $mailParams.Subject = if (
-                (
-                    $counter.updatedUsers + 
-                    $counter.removedUsers + 
-                    $counter.addedUsers
-                ) -eq 0
-            ) {
-                'No changes detected'
-            }
-            else {
-                '{0} added, {1} updated, {2} removed' -f $counter.addedUsers,
-                $counter.updatedUsers, $counter.removedUsers
-            }
+            $mailParams.Subject = '{0} BitLocker volume{1}' -f
+            $data.BitLockerVolumes.Updated.Count,
+            $(
+                if ($data.BitLockerVolumes.Updated.Count -ne 1) { 's' }
+            )
 
-            if ($counter.errors) {
+            if ($data.Errors.Count) {
                 $mailParams.Priority = 'High'
-                $mailParams.Subject += ', {0} error{1}' -f $counter.errors, $(
-                    if ($counter.errors -ne 1) { 's' }
+                $mailParams.Subject += ', {0} error{1}' -f 
+                $data.Errors.Count, 
+                $(
+                    if ($data.Errors.Count -ne 1) { 's' }
                 )
             }
             #endregion
 
-            #region Create html lists
-            $htmlErrorList = if ($counter.errors) {
-                "<p>Detected <b>{0} non terminating error{1}</b>:{2}</p>" -f $counter.errors, 
-                $(
-                    if ($counter.errors -ne 1) { 's' }
-                ),
-                $(
-                    $Error.Exception.Message | Where-Object { $_ } | 
-                    ConvertTo-HtmlListHC
-                )
-            }
+            #region Create HTML table
+            $htmlTable = "
+            <table>
+                <tr colspan=`"2`">
+                    <th>BitLocker volumes</th>
+                </tr>
+                <tr>
+                    <td>Total</td>
+                    <td>$($data.BitLockerVolumes.Updated.Count)</td>
+                </tr>
+                <tr>
+                    <td>Previous export</td>
+                    <td>$($data.BitLockerVolumes.Previous.Count)</td>
+                </tr>
+                <tr colspan=`"2`">
+                    <th>TPM statuses</th>
+                </tr>
+                <tr>
+                    <td>Total</td>
+                    <td>$($data.TpmStatuses.Updated.Count)</td>
+                </tr>
+                <tr>
+                    <td>Previous export</td>
+                    <td>$($data.TpmStatuses.Previous.Count)</td>
+                </tr>
+                <tr colspan=`"2`">
+                    <th>Errors</th>
+                </tr>
+                <tr>
+                    <td>Total</td>
+                    <td>$($data.Errors.Count)</td>
+                </tr>
+            </table>" 
             #endregion
 
             #region Send mail
-            $htmlTable = "
-            <table>
-                <tr>
-                    <th>{0}</th>
-                    <td>{1}</td>
-                </tr>
-                <tr>
-                    <th>{2}</th>
-                    <td>{3}</td>
-                </tr>
-                <tr>
-                    <th>Added</th>
-                    <td>{4}</td>
-                </tr>
-                <tr>
-                    <th>Updated</th>
-                    <td>{5}</td>
-                </tr>
-                <tr>
-                    <th>Removed</th>
-                    <td>{6}</td>
-                </tr>
-            </table>" -f 
-            $now.ToString('dd/MM/yyyy HH:mm'), $counter.currentUsers, 
-            $lastExcelFile.CreationTime.ToString('dd/MM/yyyy HH:mm'), 
-            $counter.previousUsers, $counter.addedUsers, $counter.updatedUsers, 
-            $counter.removedUsers
-
             $mailParams.Message = "
-            $htmlErrorList
-            <p>BitLocker volumes:</p>
+            <p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>
             $htmlTable
-            {0}" -f $(
+            {0}{1}" -f 
+            $(
                 if ($mailParams.Attachments) {
                     '<p><i>* Check the attachment for details</i></p>'
                 }
+            ),
+            $(
+                $adOus | ConvertTo-OuNameHC -OU | Sort-Object |
+                ConvertTo-HtmlListHC -Header 'Organizational units:'
             )
-            
+
             $M = "Send mail`r`n- Header:`t{0}`r`n- To:`t`t{1}`r`n- Subject:`t{2}" -f 
             $mailParams.Header, $($mailParams.To -join ','), $mailParams.Subject
             Write-Verbose $M

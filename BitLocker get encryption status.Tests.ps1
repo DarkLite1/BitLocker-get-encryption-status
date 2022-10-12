@@ -159,7 +159,7 @@ Describe 'send an e-mail to the admin when' {
             }
         }
         It 'MAil.When is not Always or Never' {
-            Mock Test-ADOuExistsHC {$true}
+            Mock Test-ADOuExistsHC { $true }
 
             $testJsonFile = @{
                 AD       = @{
@@ -377,14 +377,41 @@ Describe 'when the script runs for the first time' {
             }
         }
     }
-    Context 'no e-mail or further action is taken' {
-        It 'because there are no previous BitLocker volumes available in a previously exported Excel file' {
-            Should -Not -Invoke Send-MailHC -Scope Describe 
-            Should -Invoke Write-EventLog -Scope Describe -Times 1 -Exactly -ParameterFilter {
-                $Message -like '*No comparison possible*'
+    Context "an e-mail is sent when 'Mail.When = Always'" {
+        BeforeAll {
+            .$testScript @testParams
+
+            $testMail = @{
+                Header      = $testParams.ScriptName
+                To          = $testJsonFile.SendMail.To
+                Bcc         = $ScriptAdmin
+                Priority    = 'Normal'
+                Subject     = '1 BitLocker volume'
+                Message     = "*<p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>*"
+                Attachments = '*.xlsx'
             }
         }
-    }
+        It 'Send-MailHC is called with the correct arguments' {
+            $mailParams.Header | Should -Be $testMail.Header
+            $mailParams.To | Should -Be $testMail.To
+            $mailParams.Bcc | Should -Be $testMail.Bcc
+            $mailParams.Priority | Should -Be $testMail.Priority
+            $mailParams.Subject | Should -Be $testMail.Subject
+            $mailParams.Message | Should -BeLike $testMail.Message
+            $mailParams.Attachments | Should -BeLike $testMail.Attachments
+        }
+        It 'Send-MailHC is called once' {
+            Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
+                ($Header -eq $testMail.Header) -and
+                ($To -eq $testMail.To) -and
+                ($Bcc -eq $testMail.Bcc) -and
+                ($Priority -eq $testMail.Priority) -and
+                ($Subject -eq $testMail.Subject) -and
+                ($Attachments -like $testMail.Attachments) -and
+                ($Message -like $testMail.Message)
+            }
+        }
+    } -Tag test
 }
 Describe 'when the script runs after a snapshot was created' {
     BeforeAll {
