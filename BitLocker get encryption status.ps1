@@ -233,6 +233,9 @@ Process {
         Sort-Object 'CreationTime' | Select-Object -Last 1
 
         if ($lastExcelFile) {
+            # wait one seconde for unique log file name
+            Start-Sleep -Seconds 1
+
             $worksheets = Get-ExcelSheetInfo -Path $lastExcelFile.FullName
             
             #region previously exported BitLocker volumes                
@@ -271,6 +274,10 @@ Process {
                 Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M    
             }
             #endregion
+        }
+        else {
+            $M = 'No previously exported data'
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M    
         }
         #endregion
 
@@ -521,13 +528,6 @@ Process {
 End {
     Try {
         if ($mailWhen -eq 'Always') {
-            $counter = @{
-                currentUsers  = $data.BitLockerVolumes.Current.Count
-                previousUsers = $data.BitLockerVolumes.Previous.Count
-                updatedUsers  = $data.BitLockerVolumes.Updated.Count
-                errors        = $data.Errors.Count
-            }
-
             #region Subject and Priority
             $mailParams.Subject = '{0} BitLocker volume{1}' -f
             $data.BitLockerVolumes.Updated.Count,

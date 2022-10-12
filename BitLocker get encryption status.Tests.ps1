@@ -438,3 +438,300 @@ Describe 'when the script runs for the first time' {
         }
     }
 }
+Describe 'when the script' {
+    BeforeAll {
+        $testData = @(
+            [PSCustomObject]@{
+                ComputerName = 'PC1'
+                Tpm          = @{
+                    TpmActivated = $true
+                    TpmPresent   = $true
+                    TpmEnabled   = $true
+                    TpmReady     = $true
+                    TpmOwned     = $true
+                }
+                BitLocker    = @{
+                    Volumes  = @(
+                        @{
+                            MountPoint           = 'C:'
+                            CapacityGB           = 237.0482
+                            EncryptionPercentage = 100
+                            VolumeStatus         = 'FullyEncrypted'
+                            ProtectionStatus     = 'on'
+                            LockStatus           = 'Unlocked'
+                        }
+                    )
+                    Recovery = @(
+                        @{
+                            MountPoint       = 'C:'
+                            ProtectorType    = 'Tpm'
+                            RecoveryPassword = $null
+                        },
+                        @{
+                            MountPoint       = 'C:'
+                            ProtectorType    = 'RecoveryPassword'
+                            RecoveryPassword = 'abc'
+                        }
+                    )
+                }
+                Error        = $null
+                Date         = Get-Date
+            }
+        )
+        Mock Get-ADComputer {
+            [PSCustomObject]@{
+                Name = $testData[0].ComputerName
+            }
+        }
+        Mock Invoke-Command {
+            & $realCmdLet.InvokeCommand -Scriptblock { 
+                $using:testData
+            } -AsJob -ComputerName $env:COMPUTERNAME
+        }
+
+        $testJsonFile = @{
+            AD       = @{
+                OU = @(
+                    'OU=BEL,OU=EU,DC=contoso,DC=com'
+                )
+            }
+            SendMail = @{
+                When = 'Never'
+                To   = 'bob@contoso.com'
+            }
+        }
+        $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
+
+        .$testScript @testParams -Verbose
+    }
+    It "no e-mail is sent when 'Mail.When = Never'" {
+        Should -Not -Invoke Send-MailHC -Exactly 1 -Scope Describe
+    }
+    Context 'runs again after the first run' {
+        BeforeAll {
+            $testDataNew = @(
+                [PSCustomObject]@{
+                    ComputerName = 'PC2'
+                    Tpm          = @{
+                        TpmActivated = $true
+                        TpmPresent   = $false
+                        TpmEnabled   = $true
+                        TpmReady     = $true
+                        TpmOwned     = $true
+                    }
+                    BitLocker    = @{
+                        Volumes  = @(
+                            @{
+                                MountPoint           = 'D:'
+                                CapacityGB           = 200
+                                EncryptionPercentage = 50
+                                VolumeStatus         = 'FullyEncrypted'
+                                ProtectionStatus     = 'on'
+                                LockStatus           = 'Unlocked'
+                            }
+                        )
+                        Recovery = @(
+                            @{
+                                MountPoint       = 'D:'
+                                ProtectorType    = 'Tpm'
+                                RecoveryPassword = $null
+                            },
+                            @{
+                                MountPoint       = 'D:'
+                                ProtectorType    = 'RecoveryPassword'
+                                RecoveryPassword = 'xyz'
+                            }
+                        )
+                    }
+                    Error        = $null
+                    Date         = Get-Date
+                }
+            )
+            Mock Get-ADComputer {
+                [PSCustomObject]@{
+                    Name = $testData[0].ComputerName
+                }
+                [PSCustomObject]@{
+                    Name = $testDataNew[0].ComputerName
+                }
+            }
+            Mock Invoke-Command {
+                & $realCmdLet.InvokeCommand -Scriptblock { 
+                    $using:testDataNew
+                } -AsJob -ComputerName $env:COMPUTERNAME
+            }
+
+            $testJsonFile = @{
+                AD       = @{
+                    OU = @(
+                        'OU=BEL,OU=EU,DC=contoso,DC=com'
+                    )
+                }
+                SendMail = @{
+                    When = 'Always'
+                    To   = 'bob@contoso.com'
+                }
+            }
+            $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
+
+            .$testScript @testParams -Verbose
+            
+            $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - State.xlsx' | 
+            Sort-Object 'CreationTime' | Select-Object -Last 1
+        }
+        Context 'collect all BitLocker volumes' {
+            It 'call Get-ADComputer with the correct arguments' {
+                Should -Invoke Get-ADComputer -Scope Describe -Times 2 -Exactly 
+    
+                Should -Invoke Get-ADComputer -Scope Describe -Times 2 -Exactly -ParameterFilter {
+                    ($SearchBase -eq $testJsonFile.AD.OU[0])
+                }
+            }
+            It 'call Invoke-Command with the correct arguments' {
+                Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly 
+    
+                Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly -ParameterFilter {
+                    ($ScriptBlock) -and
+                    ($ComputerName -eq $testData[0].ComputerName) -and
+                    ($AsJob)
+                }
+
+                Should -Invoke Invoke-Command -Scope Describe -Times 1 -Exactly -ParameterFilter {
+                    ($ScriptBlock) -and
+                    ($ComputerName -eq $testDataNew[0].ComputerName) -and
+                    ($AsJob)
+                }
+            }
+        }
+        Context 'export a merged Excel file with previous and new data' {
+            Context "with worksheet 'BitLockerVolumes'" {
+                BeforeAll {
+                    $testExportedExcelRows = @(
+                        @{
+                            ComputerName = $testData[0].ComputerName
+                            Date         = $testData[0].Date
+                            Drive        = $testData[0].BitLocker.Volumes[0].MountPoint
+                            Size         = '237 GB'
+                            Encrypted    = '100 %'
+                            VolumeStatus = $testData[0].BitLocker.Volumes[0].VolumeStatus
+                            Status       = 'Protection ON (Unlocked)'
+                            KeyProtector = 'Tpm, RecoveryPassword: abc'
+                        },
+                        @{
+                            ComputerName = $testDataNew[0].ComputerName
+                            Date         = $testDataNew[0].Date
+                            Drive        = $testDataNew[0].BitLocker.Volumes[0].MountPoint
+                            Size         = '200 GB'
+                            Encrypted    = '50 %'
+                            VolumeStatus = $testDataNew[0].BitLocker.Volumes[0].VolumeStatus
+                            Status       = 'Protection ON (Unlocked)'
+                            KeyProtector = 'Tpm, RecoveryPassword: xyz'
+                        }
+                    )
+        
+                    $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'BitLockerVolumes'
+                }
+                It 'to the log folder' {
+                    $testExcelLogFile | Should -Not -BeNullOrEmpty
+                }
+                It 'with the correct total rows' {
+                    $actual | Should -HaveCount $testExportedExcelRows.Count
+                }
+                It 'with the correct data in the rows' {
+                    foreach ($testRow in $testExportedExcelRows) {
+                        $actualRow = $actual | Where-Object {
+                            $_.ComputerName -eq $testRow.ComputerName
+                        }
+                        $actualRow.Drive | Should -Be $testRow.Drive
+                        $actualRow.Date.ToString('yyyyMMdd HHmm') | 
+                        Should -Be $testRow.Date.ToString('yyyyMMdd HHmm')
+                        $actualRow.Size | Should -Be $testRow.Size
+                        $actualRow.Encrypted | Should -Be $testRow.Encrypted
+                        $actualRow.VolumeStatus | Should -Be $testRow.VolumeStatus
+                        $actualRow.Status | Should -Be $testRow.Status
+                        $actualRow.KeyProtector | Should -Be $testRow.KeyProtector
+                    }
+                }
+            }
+            Context "with worksheet 'TPM'" {
+                BeforeAll {
+                    $testExportedExcelRows = @(
+                        @{
+                            ComputerName = $testData[0].ComputerName
+                            Date         = $testData[0].Date
+                            Activated    = $testData[0].Tpm.TpmActivated
+                            Present      = $testData[0].Tpm.TpmPresent
+                            Enabled      = $testData[0].Tpm.TpmEnabled
+                            Ready        = $testData[0].Tpm.TpmReady
+                            Owned        = $testData[0].Tpm.TpmOwned
+                        },
+                        @{
+                            ComputerName = $testDataNew[0].ComputerName
+                            Date         = $testDataNew[0].Date
+                            Activated    = $testDataNew[0].Tpm.TpmActivated
+                            Present      = $testDataNew[0].Tpm.TpmPresent
+                            Enabled      = $testDataNew[0].Tpm.TpmEnabled
+                            Ready        = $testDataNew[0].Tpm.TpmReady
+                            Owned        = $testDataNew[0].Tpm.TpmOwned
+                        }
+                    )
+        
+                    $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'TpmStatuses'
+                }
+                It 'to the log folder' {
+                    $testExcelLogFile | Should -Not -BeNullOrEmpty
+                }
+                It 'with the correct total rows' {
+                    $actual | Should -HaveCount $testExportedExcelRows.Count
+                }
+                It 'with the correct data in the rows' {
+                    foreach ($testRow in $testExportedExcelRows) {
+                        $actualRow = $actual | Where-Object {
+                            $_.ComputerName -eq $testRow.ComputerName
+                        }
+                        $actualRow.Activated | Should -Be $testRow.Activated
+                        $actualRow.Date.ToString('yyyyMMdd HHmm') | 
+                        Should -Be $testRow.Date.ToString('yyyyMMdd HHmm')
+                        $actualRow.Present | Should -Be $testRow.Present
+                        $actualRow.Enabled | Should -Be $testRow.Enabled
+                        $actualRow.Ready | Should -Be $testRow.Ready
+                        $actualRow.Owned | Should -Be $testRow.Owned
+                    }
+                }
+            }
+        }
+        Context "an e-mail is sent when 'Mail.When = Always'" {
+            BeforeAll {
+                $testMail = @{
+                    Header      = $testParams.ScriptName
+                    To          = $testJsonFile.SendMail.To
+                    Bcc         = $ScriptAdmin
+                    Priority    = 'Normal'
+                    Subject     = '2 BitLocker volumes'
+                    Message     = "*<p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>*"
+                    Attachments = $testExcelLogFile.FullName
+                }
+            }
+            It 'Send-MailHC is called with the correct arguments' {
+                $mailParams.Header | Should -Be $testMail.Header
+                $mailParams.To | Should -Be $testMail.To
+                $mailParams.Bcc | Should -Be $testMail.Bcc
+                $mailParams.Priority | Should -Be $testMail.Priority
+                $mailParams.Subject | Should -Be $testMail.Subject
+                $mailParams.Message | Should -BeLike $testMail.Message
+                $mailParams.Attachments | Should -Be $testMail.Attachments
+            }
+            It 'Send-MailHC is called once' {
+                Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
+                    ($Header -eq $testMail.Header) -and
+                    ($To -eq $testMail.To) -and
+                    ($Bcc -eq $testMail.Bcc) -and
+                    ($Priority -eq $testMail.Priority) -and
+                    ($Subject -eq $testMail.Subject) -and
+                    ($Attachments -like $testMail.Attachments) -and
+                    ($Message -like $testMail.Message)
+                }
+            }
+        }
+    }
+} -Tag test
