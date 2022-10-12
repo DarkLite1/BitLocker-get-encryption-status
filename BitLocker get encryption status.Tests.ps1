@@ -158,6 +158,30 @@ Describe 'send an e-mail to the admin when' {
                 $EntryType -eq 'Error'
             }
         }
+        It 'MAil.When is not Always or Never' {
+            Mock Test-ADOuExistsHC {$true}
+
+            $testJsonFile = @{
+                AD       = @{
+                    OU = @('OU=EU,DC=contoso,DC=com')
+                }
+                SendMail = @{
+                    When = 'wrong'
+                    To   = 'bob@contoso.com'
+                }
+            }
+            $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
+            
+            .$testScript @testParams
+                        
+            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                (&$MailAdminParams) -and 
+                ($Message -like "*The value 'wrong' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used*")
+            }
+            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                $EntryType -eq 'Error'
+            }
+        }
     }
     It 'no computers found in OU' {
         $testJsonFile = @{
@@ -181,7 +205,7 @@ Describe 'send an e-mail to the admin when' {
             $EntryType -eq 'Error'
         }
     }
-}
+} -Tag test
 Describe 'when the script runs for the first time' {
     BeforeAll {
         $testData = @(
@@ -351,7 +375,7 @@ Describe 'when the script runs for the first time' {
                     $actualRow.Owned | Should -Be $testRow.Owned
                 }
             }
-        } -Tag test
+        }
     }
     Context 'no e-mail or further action is taken' {
         It 'because there are no previous BitLocker volumes available in a previously exported Excel file' {

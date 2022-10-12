@@ -141,9 +141,9 @@ Begin {
                 throw "Property 'SendMail.When' not found."
             }
             if (
-                $mailWhen -notMatch '^Always$|^OnlyWhenResultsAreFound$'
+                $mailWhen -notMatch '^Always$|^Never$'
             ) {
-                throw "The value '$mailWhen' in 'SendMail.When' is not supported. Only the value 'Always' or 'OnlyWhenResultsAreFound' can be used."
+                throw "The value '$mailWhen' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used."
             }
             #endregion
 
@@ -497,7 +497,6 @@ Process {
         #endregion
 
         #endregion
-
     }
     Catch {
         Write-Warning $_
@@ -508,7 +507,7 @@ Process {
 }
 End {
     Try {
-        if (($mailWhen -eq 'Always') -or ($differencesAdUsers)) {
+        if ($mailWhen -eq 'Always') {
             $counter = @{
                 currentUsers  = $data.BitLockerVolumes.Current.Count
                 previousUsers = $data.BitLockerVolumes.Previous.Count
@@ -598,6 +597,10 @@ End {
             Get-ScriptRuntimeHC -Stop
             Send-MailHC @mailParams
             #endregion
+        }
+        else {
+            $M = "No e-mail is sent because 'Mail.When = $mailWhen'"
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
         }
     }
     Catch {
