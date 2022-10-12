@@ -99,8 +99,7 @@ Describe 'send an e-mail to the admin when' {
         }
         It 'is missing property <_>' -ForEach @(
             'AD.OU', 
-            'SendMail.To',
-            'SendMail.When'
+            'SendMail.To'
         ) {
             $testJsonFile = @{
                 AD       = @{
@@ -122,7 +121,7 @@ Describe 'send an e-mail to the admin when' {
 
             $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
 
-            .$testScript @testParams
+            .$testScript @testParams -SendMail
                         
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and 
@@ -153,30 +152,6 @@ Describe 'send an e-mail to the admin when' {
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and 
                 ($Message -like "*OU 'OU=Wrong,DC=contoso,DC=com' defined in 'AD.OU' does not exist*")
-            }
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
-                $EntryType -eq 'Error'
-            }
-        }
-        It 'MAil.When is not Always or Never' {
-            Mock Test-ADOuExistsHC { $true }
-
-            $testJsonFile = @{
-                AD       = @{
-                    OU = @('OU=EU,DC=contoso,DC=com')
-                }
-                SendMail = @{
-                    When = 'wrong'
-                    To   = 'bob@contoso.com'
-                }
-            }
-            $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
-            
-            .$testScript @testParams
-                        
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
-                ($Message -like "*The value 'wrong' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used*")
             }
             Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                 $EntryType -eq 'Error'
@@ -290,13 +265,12 @@ Describe 'when the script runs for the first time' {
                 )
             }
             SendMail = @{
-                When = 'Always'
-                To   = 'bob@contoso.com'
+                To = 'bob@contoso.com'
             }
         }
         $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
 
-        .$testScript @testParams -Verbose
+        .$testScript @testParams -SendMail
     }
     Context 'collect all BitLocker volumes' {
         It 'call Get-ADComputer with the correct arguments' {
@@ -402,10 +376,8 @@ Describe 'when the script runs for the first time' {
             }
         }
     }
-    Context "an e-mail is sent when 'Mail.When = Always'" {
+    Context "an e-mail is sent when the switch 'SendMail' is used" {
         BeforeAll {
-            .$testScript @testParams
-
             $testMail = @{
                 Header      = $testParams.ScriptName
                 To          = $testJsonFile.SendMail.To
@@ -426,7 +398,7 @@ Describe 'when the script runs for the first time' {
             $mailParams.Attachments | Should -BeLike $testMail.Attachments
         }
         It 'Send-MailHC is called once' {
-            Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
+            Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
                 ($Header -eq $testMail.Header) -and
                 ($To -eq $testMail.To) -and
                 ($Bcc -eq $testMail.Bcc) -and
@@ -496,15 +468,14 @@ Describe 'when the script' {
                 )
             }
             SendMail = @{
-                When = 'Never'
-                To   = 'bob@contoso.com'
+                To = 'bob@contoso.com'
             }
         }
         $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
 
-        .$testScript @testParams -Verbose
+        .$testScript @testParams
     }
-    It "no e-mail is sent when 'Mail.When = Never'" {
+    It "no e-mail is sent when the switch 'SendMail' is not used" {
         Should -Not -Invoke Send-MailHC -Exactly 1 -Scope Describe
     }
     Context 'runs again after the first run' {
@@ -568,13 +539,12 @@ Describe 'when the script' {
                     )
                 }
                 SendMail = @{
-                    When = 'Always'
-                    To   = 'bob@contoso.com'
+                    To = 'bob@contoso.com'
                 }
             }
             $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
 
-            .$testScript @testParams -Verbose
+            .$testScript @testParams -SendMail
             
             $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - State.xlsx' | 
             Sort-Object 'CreationTime' | Select-Object -Last 1
@@ -700,7 +670,7 @@ Describe 'when the script' {
                 }
             }
         }
-        Context "an e-mail is sent when 'Mail.When = Always'" {
+        Context "an e-mail is sent when the switch 'SendMail' is used" {
             BeforeAll {
                 $testMail = @{
                     Header      = $testParams.ScriptName
@@ -740,6 +710,6 @@ Describe 'when the script' {
                     ($Message -like $testMail.Message)
                 }
             }
-        } -Tag test
+        }
     }
 }

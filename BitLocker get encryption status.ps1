@@ -33,12 +33,13 @@
     .PARAMETER SendMail.To
         List of e-mail addresses where to send the e-mail too.
 
-    .PARAMETER SendMail.When
-        Determines when an e-mail is sent to the end user.
-        Valid options:
-        - Never   : No e-mail is sent. Useful for collecting data with 
-                    scheduled tasks and not spamming the user. 
-        - Always  : always sent an e-mail to the user
+    .PARAMETER SendMail
+        When the switch SendMail is not used, the script only collects data. 
+        When SendMail is used, the script sends an Excel file by mail to the
+        user.
+        
+        This is useful for collecting data with a scheduled tasks and not 
+        spamming the user. 
 #>
 
 [CmdLetBinding()]
@@ -52,6 +53,7 @@ Param (
         Errors  = 'Errors'
         Tpm     = 'TpmStatuses'
     },
+    [Switch]$SendMail,
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\Application specific\BitLocker\$ScriptName",
     [String[]]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
 )
@@ -135,20 +137,14 @@ Begin {
             ForEach-Object {
                 throw "OU '$_' defined in 'AD.OU' does not exist"
             }
-            if (-not ($mailTo = $file.SendMail.To)) {
-                throw "Property 'SendMail.To' not found."
-            }
-            if (-not ($mailWhen = $file.SendMail.When)) {
-                throw "Property 'SendMail.When' not found."
-            }
-            if (-not ($sendMailHeader = $SendMail.Header)) {
-                $SendMailHeader = $ScriptName
-            }
-            if (
-                $mailWhen -notMatch '^Always$|^Never$'
-            ) {
-                throw "The value '$mailWhen' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used."
-            }
+            if ($SendMail) {
+                if (-not ($mailTo = $file.SendMail.To)) {
+                    throw "Property 'SendMail.To' not found."
+                }
+                if (-not ($sendMailHeader = $SendMail.Header)) {
+                    $SendMailHeader = $ScriptName
+                }
+            }            
             if (-not ($MaxConcurrentJobs = $file.MaxConcurrentJobs)) {
                 $MaxConcurrentJobs = 30
             }
@@ -527,7 +523,7 @@ Process {
 }
 End {
     Try {
-        if ($mailWhen -eq 'Always') {
+        if ($SendMail) {
             #region Subject and Priority
             $mailParams.Subject = '{0} BitLocker volume{1}' -f
             $data.BitLockerVolumes.Updated.Count,
@@ -604,7 +600,7 @@ End {
             #endregion
         }
         else {
-            $M = "No e-mail is sent because 'Mail.When = $mailWhen'"
+            $M = "No e-mail is sent because the switch 'SendMail' is not used"
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
         }
     }
