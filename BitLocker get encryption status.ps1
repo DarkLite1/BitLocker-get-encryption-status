@@ -547,8 +547,8 @@ End {
             #region Create HTML table
             $htmlTable = "
             <table>
-                <tr colspan=`"2`">
-                    <th>BitLocker volumes</th>
+                <tr>
+                    <th colspan=`"2`">BitLocker volumes</th>
                 </tr>
                 <tr>
                     <td>Total</td>
@@ -558,8 +558,8 @@ End {
                     <td>Previous export</td>
                     <td>$($data.BitLockerVolumes.Previous.Count)</td>
                 </tr>
-                <tr colspan=`"2`">
-                    <th>TPM statuses</th>
+                <tr>
+                    <th colspan=`"2`">TPM statuses</th>
                 </tr>
                 <tr>
                     <td>Total</td>
@@ -569,8 +569,8 @@ End {
                     <td>Previous export</td>
                     <td>$($data.TpmStatuses.Previous.Count)</td>
                 </tr>
-                <tr colspan=`"2`">
-                    <th>Errors</th>
+                <tr>
+                    <th colspan=`"2`">Errors</th>
                 </tr>
                 <tr>
                     <td>Total</td>
