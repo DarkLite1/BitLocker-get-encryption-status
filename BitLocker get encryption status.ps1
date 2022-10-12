@@ -278,6 +278,10 @@ Process {
         #endregion
 
         #region Get current BitLocker volumes and Tpm status
+        $M = "Get BitLocker and TPM status from {0} computer{1}" -f 
+        $computers.Count, $(if ($computers.Count -ne 1) { 's' })
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+
         $params = @{
             ScriptBlock   = $scriptBlock
             ComputerName  = $computers.Name
