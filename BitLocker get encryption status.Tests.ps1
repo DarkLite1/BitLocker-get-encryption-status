@@ -182,6 +182,31 @@ Describe 'send an e-mail to the admin when' {
                 $EntryType -eq 'Error'
             }
         }
+        It 'MaxConcurrentJobs is not a number'{
+            Mock Test-ADOuExistsHC { $true }
+
+            $testJsonFile = @{
+                AD       = @{
+                    OU = @('OU=EU,DC=contoso,DC=com')
+                }
+                SendMail = @{
+                    When = 'Always'
+                    To   = 'bob@contoso.com'
+                }
+                MaxConcurrentJobs = 'a'
+            }
+            $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
+            
+            .$testScript @testParams
+                        
+            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                (&$MailAdminParams) -and 
+                ($Message -like "*The value 'a' in 'MaxConcurrentJobs' is not a number*")
+            }
+            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                $EntryType -eq 'Error'
+            }
+        } -Tag test
     }
     It 'no computers found in OU' {
         $testJsonFile = @{
@@ -411,7 +436,7 @@ Describe 'when the script runs for the first time' {
                 ($Message -like $testMail.Message)
             }
         }
-    } -Tag test
+    }
 }
 Describe 'when the script runs after a snapshot was created' {
     BeforeAll {

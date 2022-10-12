@@ -149,6 +149,12 @@ Begin {
             ) {
                 throw "The value '$mailWhen' in 'SendMail.When' is not supported. Only the value 'Always' or 'Never' can be used."
             }
+            if (-not ($MaxConcurrentJobs = $file.MaxConcurrentJobs)) {
+                $MaxConcurrentJobs = 30
+            }
+            if ($MaxConcurrentJobs -isNot [int]) {
+                throw "The value '$MaxConcurrentJobs' in 'MaxConcurrentJobs' is not a number."
+            }
             #endregion
         }
         catch {
@@ -272,7 +278,7 @@ Process {
         $params = @{
             ScriptBlock   = $scriptBlock
             ComputerName  = $computers.Name
-            ThrottleLimit = 30
+            ThrottleLimit = $MaxConcurrentJobs
             AsJob         = $true
         }
         $jobs = Invoke-Command @params
