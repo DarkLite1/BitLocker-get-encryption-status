@@ -302,8 +302,9 @@ Describe 'when the script runs for the first time' {
                         ComputerName = $testData[0].ComputerName
                         Date         = $testData[0].Date
                         Drive        = $testData[0].BitLocker.Volumes[0].MountPoint
-                        Size         = '237 GB'
-                        Encrypted    = '100 %'
+                        Size         = '237'
+                        Encrypted    = '1' 
+                        # Excel stores percentages divided by 100 '100 %'
                         VolumeStatus = $testData[0].BitLocker.Volumes[0].VolumeStatus
                         Status       = 'Protection ON (Unlocked)'
                         KeyProtector = 'Tpm, RecoveryPassword: abc'
@@ -581,8 +582,9 @@ Describe 'when the script' {
                             ComputerName = $testData[0].ComputerName
                             Date         = $testData[0].Date
                             Drive        = $testData[0].BitLocker.Volumes[0].MountPoint
-                            Size         = '237 GB'
-                            Encrypted    = '100 %'
+                            Size         = '237'
+                            Encrypted    = '1' 
+                            # Excel stores percentages divided by 100 '100 %'
                             VolumeStatus = $testData[0].BitLocker.Volumes[0].VolumeStatus
                             Status       = 'Protection ON (Unlocked)'
                             KeyProtector = 'Tpm, RecoveryPassword: abc'
@@ -591,8 +593,9 @@ Describe 'when the script' {
                             ComputerName = $testDataNew[0].ComputerName
                             Date         = $testDataNew[0].Date
                             Drive        = $testDataNew[0].BitLocker.Volumes[0].MountPoint
-                            Size         = '200 GB'
-                            Encrypted    = '50 %'
+                            Size         = '200'
+                            Encrypted    = '0.5'
+                            # Excel stores percentages divided by 100 '50 %'
                             VolumeStatus = $testDataNew[0].BitLocker.Volumes[0].VolumeStatus
                             Status       = 'Protection ON (Unlocked)'
                             KeyProtector = 'Tpm, RecoveryPassword: xyz'
