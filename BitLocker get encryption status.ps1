@@ -607,7 +607,7 @@ End {
             if ($data.Errors.Updated) {
                 $mailParams.Priority = 'High'
                 $mailParams.Subject += ', {0} error{1}' -f 
-                $data.Errors.Updated, 
+                $data.Errors.Updated.Count, 
                 $(
                     if ($data.Errors.Updated -ne 1) { 's' }
                 )
