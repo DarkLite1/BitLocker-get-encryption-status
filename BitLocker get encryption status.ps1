@@ -319,11 +319,11 @@ Process {
             },
             @{
                 Name       = 'Size';
-                Expression = { '{0} {1}' -f [math]::Round($_.CapacityGB), 'GB' }
+                Expression = { [math]::Round($_.CapacityGB) }
             },
             @{
                 Name       = 'Encrypted';
-                Expression = { '{0} {1}' -f $_.EncryptionPercentage, '%' }
+                Expression = { $_.EncryptionPercentage / 100 }
             },
             @{
                 Name       = 'VolumeStatus';
@@ -394,7 +394,36 @@ Process {
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $data.BitLockerVolumes.Updated | Export-Excel @excelParams
+            $data.BitLockerVolumes.Updated | 
+            Sort-Object -Property 'ComputerName' | 
+            Export-Excel @excelParams -AutoNameRange -CellStyleSB {
+                Param (
+                    $workSheet,
+                    $TotalRows,
+                    $LastColumn
+                )
+
+                @(
+                    $workSheet.Names['Size'].Style).ForEach( {
+                        $_.NumberFormat.Format = '?\ \G\B'
+                        $_.HorizontalAlignment = 'Center'
+                    }
+                )
+                @(
+                    $workSheet.Names['Encrypted'].Style).ForEach( {
+                        # $_.NumberFormat.Format = "#0.00%" # more decimals
+                        $_.NumberFormat.Format = "#0%"
+                        $_.HorizontalAlignment = 'Center'
+                    }
+                )
+                @(
+                    $workSheet.Names['Drive'].Style).ForEach( {
+                        $_.HorizontalAlignment = 'Center'
+                    }
+                )
+
+                # $workSheet.Cells.Style.HorizontalAlignment = 'Center'
+            }
 
             $mailParams.Attachments = $excelParams.Path
         }
