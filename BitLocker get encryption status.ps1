@@ -535,34 +535,61 @@ Process {
 
         #endregion
 
-        #region Create Excel sheet 'Errors'
-        $data.Errors += $jobResults | Where-Object { $_.Error } | 
+        #region Errors
+        
+        #region Convert job objects
+        $data.Errors.Current += $jobResults | Where-Object { $_.Error } | 
         Select-Object -Property @{
             Name       = 'ComputerName';
             Expression = { $_.ComputerName }
         },
         'Error'
         
-        $M = 'Found {0} error{1} querying BitLocker volumes' -f 
-        $data.Errors.Count,
-        $(if ($data.Errors.Count -ne 1) { 's' })
+        $M = 'Found {0} error{1} on {2} computer{3}' -f 
+        $data.Errors.Current.Count,
+        $(if ($data.Errors.Current.Count -ne 1) { 's' }),
+        $computers.Count,
+        $(if ($computers.Count -ne 1) { 's' })
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
-                
-        if ($data.Errors) {
+        #endregion        
+
+        #region Merge old and new data
+        $data.Errors.Updated += $data.Errors.Current
+
+        $data.Errors.Updated += $data.Errors.Previous.Where(
+            { 
+                ($data.Errors.Current.ComputerName -notContains $_.ComputerName) -and 
+                ($data.BitLocker.Updated.ComputerName -notContains $_.ComputerName) -and
+                ($data.TpmStatuses.Updated.ComputerName -notContains $_.ComputerName) -and
+                { $computers.Name -contains $_.ComputerName }
+            }
+        )
+        
+        $M = "Errors:`r`n- Current: {0}`r`n- Previous: {1}`r`n- Updated: {2}" -f 
+        $data.Errors.Current.Count,
+        $data.Errors.Previous.Count,
+        $data.Errors.Updated.Count
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+        #endregion
+
+        #region Create updated Excel sheet
+        if ($data.Errors.Updated) {
             $excelParams.WorksheetName = $excelParams.TableName = $ExcelWorksheetName.Errors
-                    
+            
             $M = "Export {0} row{1} to Excel file '{2}' worksheet '{3}'" -f 
-            $data.Errors.Count, 
-            $(if ($data.Errors.Count -ne 1) { 's' }), 
+            $data.Errors.Updated.Count, 
+            $(if ($data.Errors.Updated.Count -ne 1) { 's' }), 
             $excelParams.Path,
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
-                    
-            $data.Errors | Export-Excel @excelParams
-                 
+
+            $data.Errors.Updated | Export-Excel @excelParams
+
             $mailParams.Attachments = $excelParams.Path
         }
-        #endregion        
+        #endregion
+
+        #endregion   
     }
     Catch {
         Write-Warning $_
@@ -581,12 +608,12 @@ End {
                 if ($data.BitLockerVolumes.Updated.Count -ne 1) { 's' }
             )
 
-            if ($data.Errors.Count) {
+            if ($data.Errors.Updated) {
                 $mailParams.Priority = 'High'
                 $mailParams.Subject += ', {0} error{1}' -f 
-                $data.Errors.Count, 
+                $data.Errors.Updated, 
                 $(
-                    if ($data.Errors.Count -ne 1) { 's' }
+                    if ($data.Errors.Updated -ne 1) { 's' }
                 )
             }
             #endregion
@@ -621,14 +648,18 @@ End {
                 </tr>
                 <tr>
                     <td>Total</td>
-                    <td>$($data.Errors.Count)</td>
+                    <td>$($data.Errors.Updated.Count)</td>
+                </tr>
+                <tr>
+                    <td>Previous export</td>
+                    <td>$($data.Errors.Previous.Count)</td>
                 </tr>
             </table>" 
             #endregion
 
             #region Send mail
             $mailParams.Message = "
-            <p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p>
+            <p>Scan the hard drives of computers in active directory for their BitLocker and TPM status.</p><p>All data from online computers is collected. When a computer is offline, the previously gathered data is added to the report for having a complete overview in one Excel file.</p>
             $htmlTable
             {0}{1}" -f 
             $(
