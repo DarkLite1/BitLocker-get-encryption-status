@@ -234,7 +234,7 @@ Process {
 
         if ($lastExcelFile) {
             #region Verbose
-            $M = "Previously exported Excel file '{1}'" -f 
+            $M = "Previously exported Excel file '{0}'" -f 
             $lastExcelFile.FullName
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
             #endregion
