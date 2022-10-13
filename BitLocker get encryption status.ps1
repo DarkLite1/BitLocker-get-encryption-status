@@ -386,12 +386,10 @@ Process {
         $data.BitLockerVolumes.Updated += $data.BitLockerVolumes.Current
 
         $data.BitLockerVolumes.Updated += $data.BitLockerVolumes.Previous.Where(
-            { $data.BitLockerVolumes.Updated.ComputerName -notContains $_.ComputerName }
-        )
-
-        # remove PC's that are no longer in the OU's
-        $data.BitLockerVolumes.Updated = $data.BitLockerVolumes.Updated.Where(
-            { $computers.Name -contains $_.ComputerName }
+            { 
+                ($data.BitLockerVolumes.Current.ComputerName -notContains $_.ComputerName) -and
+                ($computers.Name -contains $_.ComputerName)
+            }
         )
 
         $M = "BitLocker volumes:`r`n- Current: {0}`r`n- Previous: {1}`r`n- Updated: {2}" -f 
@@ -501,12 +499,10 @@ Process {
         $data.TpmStatuses.Updated += $data.TpmStatuses.Current
 
         $data.TpmStatuses.Updated += $data.TpmStatuses.Previous.Where(
-            { $data.TpmStatuses.Updated.ComputerName -notContains $_.ComputerName }
-        )
-
-        # remove PC's that are no longer in the OU's
-        $data.TpmStatuses.Updated = $data.TpmStatuses.Updated.Where(
-            { $computers.Name -contains $_.ComputerName }
+            {
+            ( $data.TpmStatuses.Current.ComputerName -notContains $_.ComputerName) -and
+            ( $computers.Name -contains $_.ComputerName )
+            }
         )
 
         $M = "TPM statuses:`r`n- Current: {0}`r`n- Previous: {1}`r`n- Updated: {2}" -f 
@@ -561,7 +557,7 @@ Process {
                 ($data.Errors.Current.ComputerName -notContains $_.ComputerName) -and 
                 ($data.BitLocker.Updated.ComputerName -notContains $_.ComputerName) -and
                 ($data.TpmStatuses.Updated.ComputerName -notContains $_.ComputerName) -and
-                { $computers.Name -contains $_.ComputerName }
+                ( $computers.Name -contains $_.ComputerName )
             }
         )
         

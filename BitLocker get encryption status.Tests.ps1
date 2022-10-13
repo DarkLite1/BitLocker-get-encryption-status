@@ -375,7 +375,7 @@ Describe 'when the script runs for the first time' {
                     $actualRow.Owned | Should -Be $testRow.Owned
                 }
             }
-        }
+        } -Tag test
     }
     Context "an e-mail is sent when the switch 'SendMail' is used" {
         BeforeAll {
