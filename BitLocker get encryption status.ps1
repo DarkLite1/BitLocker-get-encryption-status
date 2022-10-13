@@ -167,7 +167,11 @@ Begin {
 Process {
     Try {
         $data = @{
-            Errors           = @()
+            Errors           = @{
+                Previous = @()
+                Current  = @()
+                Updated  = @()
+            }
             BitLockerVolumes = @{
                 Previous = @()
                 Current  = @()
@@ -229,12 +233,18 @@ Process {
         Sort-Object 'CreationTime' | Select-Object -Last 1
 
         if ($lastExcelFile) {
+            #region Verbose
+            $M = "Previously exported Excel file '{1}'" -f 
+            $lastExcelFile.FullName
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            #endregion
+
             # wait one seconde for unique log file name
             Start-Sleep -Seconds 1
 
             $worksheets = Get-ExcelSheetInfo -Path $lastExcelFile.FullName
             
-            #region previously exported BitLocker volumes                
+            #region previously exported BitLocker volumes
             if ($worksheets.Name -contains $ExcelWorksheetName.Volumes) {
                 $params = @{
                     Path          = $lastExcelFile.FullName
@@ -243,11 +253,9 @@ Process {
                 }
                 $data.BitLockerVolumes.Previous += Import-Excel @params
     
-                $M = "Found {0} BitLocker volume{1} in Excel file '{2}'" -f 
-                $data.BitLockerVolumes.Previous.Count, 
-                $(if ($data.BitLockerVolumes.Previous.Count -ne 1) { 's' }),
-                $lastExcelFile.FullName
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M    
+                $M = "Previously exported BitLocker volumes: {0}" -f 
+                $data.BitLockerVolumes.Previous.Count
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
             }
             #endregion
 
@@ -259,15 +267,25 @@ Process {
                     ErrorAction   = 'Stop'
                 }
                 $data.TpmStatuses.Previous += Import-Excel @params
+
+                $M = "Previously exported TPM statuses: {0}" -f 
+                $data.TpmStatuses.Previous.Count
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            }
+            #endregion
+
+            #region previously exported Errors
+            if ($worksheets.Name -contains $ExcelWorksheetName.Errors) {
+                $params = @{
+                    Path          = $lastExcelFile.FullName
+                    WorksheetName = $ExcelWorksheetName.Errors
+                    ErrorAction   = 'Stop'
+                }
+                $data.Errors.Previous += Import-Excel @params
     
-                $M = "Found {0} Tpm {1} in Excel file '{2}'" -f 
-                $data.TpmStatuses.Previous.Count, 
-                $(
-                    if ($data.TpmStatuses.Previous.Count -ne 1) 
-                    { 'statuses' } else { 'status' }
-                ),
-                $lastExcelFile.FullName
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M    
+                $M = "Previously exported errors: {0}" -f 
+                $data.Errors.Previous.Count
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
             }
             #endregion
         }
