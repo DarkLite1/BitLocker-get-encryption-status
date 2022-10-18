@@ -135,6 +135,7 @@ Begin {
             }
             $adOus | Where-Object { -not (Test-ADOuExistsHC -Name $_) } | 
             ForEach-Object {
+                Write-Verbose "OU '$_'"
                 throw "OU '$_' defined in 'AD.OU' does not exist"
             }
             if ($SendMail) {
@@ -151,6 +152,8 @@ Begin {
             if ($MaxConcurrentJobs -isNot [int]) {
                 throw "The value '$MaxConcurrentJobs' in 'MaxConcurrentJobs' is not a number."
             }
+
+            Write-Verbose "MaxConcurrentJobs '$MaxConcurrentJobs'"
             #endregion
         }
         catch {
