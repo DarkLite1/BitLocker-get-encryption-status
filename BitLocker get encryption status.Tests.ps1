@@ -157,18 +157,20 @@ Describe 'send an e-mail to the admin when' {
                 $EntryType -eq 'Error'
             }
         }
-        It 'MaxConcurrentJobs is not a number' {
+        It 'Jobs.MaxConcurrent is not a number' {
             Mock Test-ADOuExistsHC { $true }
 
             $testJsonFile = @{
-                AD                = @{
+                AD       = @{
                     OU = @('OU=EU,DC=contoso,DC=com')
                 }
-                SendMail          = @{
+                SendMail = @{
                     When = 'Always'
                     To   = 'bob@contoso.com'
                 }
-                MaxConcurrentJobs = 'a'
+                Jobs     = @{
+                    MaxConcurrent = 'a'
+                }
             }
             $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
             
@@ -176,7 +178,35 @@ Describe 'send an e-mail to the admin when' {
                         
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and 
-                ($Message -like "*The value 'a' in 'MaxConcurrentJobs' is not a number*")
+                ($Message -like "*The value 'a' in 'Jobs.MaxConcurrent' is not a number*")
+            }
+            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                $EntryType -eq 'Error'
+            }
+        }
+        It 'Jobs.TimeOutInMinutes is not a number' {
+            Mock Test-ADOuExistsHC { $true }
+
+            $testJsonFile = @{
+                AD       = @{
+                    OU = @('OU=EU,DC=contoso,DC=com')
+                }
+                SendMail = @{
+                    When = 'Always'
+                    To   = 'bob@contoso.com'
+                }
+                Jobs     = @{
+                    MaxConcurrent    = 5
+                    TimeOutInMinutes = 'a'
+                }
+            }
+            $testJsonFile | ConvertTo-Json -Depth 3 | Out-File @testOutParams
+            
+            .$testScript @testParams
+                        
+            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                (&$MailAdminParams) -and 
+                ($Message -like "*The value 'a' in 'Jobs.TimeOutInMinutes' is not a number*")
             }
             Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                 $EntryType -eq 'Error'
@@ -260,8 +290,7 @@ Describe 'when the script runs for the first time' {
         $testJsonFile = @{
             AD       = @{
                 OU = @(
-                    'OU=BEL,OU=EU,DC=contoso,DC=com',
-                    'OU=NLD,OU=EU,DC=contoso,DC=com'
+                    'OU=BEL,OU=EU,DC=contoso,DC=com'
                 )
             }
             SendMail = @{
@@ -274,14 +303,10 @@ Describe 'when the script runs for the first time' {
     }
     Context 'collect all BitLocker volumes' {
         It 'call Get-ADComputer with the correct arguments' {
-            Should -Invoke Get-ADComputer -Scope Describe -Times 2 -Exactly 
+            Should -Invoke Get-ADComputer -Scope Describe -Times 1 -Exactly 
 
             Should -Invoke Get-ADComputer -Scope Describe -Times 1 -Exactly -ParameterFilter {
                 ($SearchBase -eq $testJsonFile.AD.OU[0])
-            }
-
-            Should -Invoke Get-ADComputer -Scope Describe -Times 1 -Exactly -ParameterFilter {
-                ($SearchBase -eq $testJsonFile.AD.OU[1])
             }
         }
         It 'call Invoke-Command with the correct arguments' {
@@ -375,7 +400,7 @@ Describe 'when the script runs for the first time' {
                     $actualRow.Owned | Should -Be $testRow.Owned
                 }
             }
-        } -Tag test
+        }
     }
     Context "an e-mail is sent when the switch 'SendMail' is used" {
         BeforeAll {
@@ -460,6 +485,8 @@ Describe 'when the script' {
             & $realCmdLet.InvokeCommand -Scriptblock { 
                 $using:testData
             } -AsJob -ComputerName $env:COMPUTERNAME
+        } -ParameterFilter {
+            $ComputerName -eq $testData[0].ComputerName
         }
 
         $testJsonFile = @{
@@ -531,6 +558,8 @@ Describe 'when the script' {
                 & $realCmdLet.InvokeCommand -Scriptblock { 
                     $using:testDataNew
                 } -AsJob -ComputerName $env:COMPUTERNAME
+            } -ParameterFilter {
+                $ComputerName -eq $testDataNew[0].ComputerName
             }
 
             $testJsonFile = @{
@@ -559,7 +588,7 @@ Describe 'when the script' {
                 }
             }
             It 'call Invoke-Command with the correct arguments' {
-                Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly 
+                Should -Invoke Invoke-Command -Scope Describe -Times 3 -Exactly 
     
                 Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly -ParameterFilter {
                     ($ScriptBlock) -and
@@ -609,7 +638,7 @@ Describe 'when the script' {
                 }
                 It 'with the correct total rows' {
                     $actual | Should -HaveCount $testExportedExcelRows.Count
-                }
+                } -Tag test
                 It 'with the correct data in the rows' {
                     foreach ($testRow in $testExportedExcelRows) {
                         $actualRow = $actual | Where-Object {

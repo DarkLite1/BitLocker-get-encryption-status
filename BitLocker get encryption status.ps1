@@ -146,11 +146,17 @@ Begin {
                     $SendMailHeader = $ScriptName
                 }
             }            
-            if (-not ($MaxConcurrentJobs = $file.MaxConcurrentJobs)) {
+            if (-not ($MaxConcurrentJobs = $file.Jobs.MaxConcurrent)) {
                 $MaxConcurrentJobs = 30
             }
             if ($MaxConcurrentJobs -isNot [int]) {
-                throw "The value '$MaxConcurrentJobs' in 'MaxConcurrentJobs' is not a number."
+                throw "The value '$MaxConcurrentJobs' in 'Jobs.MaxConcurrent' is not a number."
+            }
+            if (-not ($JobTimeOut = $file.Jobs.TimeOutInMinutes)) {
+                $JobTimeOut = 30
+            }
+            if ($JobTimeOut -isNot [int]) {
+                throw "The value '$JobTimeOut' in 'jobs.TimeOutInMinutes' is not a number."
             }
             #endregion
         }
