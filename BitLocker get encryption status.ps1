@@ -342,7 +342,8 @@ Process {
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
         $job.result += if ($job.started) {
-            $job.started | Wait-Job -Timeout $jobTimeOutInSeconds | Receive-Job
+            $null = $job.started | Wait-Job -Timeout $jobTimeOutInSeconds
+            $job.started | Receive-Job
 
             $M = 'Jobs total duration {0:hh}:{0:mm}:{0:ss}:{0:fff}' -f 
             (New-TimeSpan -Start $job.startTime -End (Get-Date))
