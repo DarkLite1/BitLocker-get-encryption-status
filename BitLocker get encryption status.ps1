@@ -350,9 +350,18 @@ Process {
         }
 
         if ($job.started.Count -ne $job.result.Count) {
-            $M = "Started a total of {0} jobs but only {1} finished within {2} minutes. Unfinished jobs are disregarded." -f 
+            $M = "Started a total of {0} jobs but only {1} finished within {2} minutes." -f 
             $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
             Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
+            
+            $data.Errors.Current += $job.started | Where-Object { 
+                $job.result.ComputerName -notContains $_.Location 
+            } | ForEach-Object {
+                [PSCustomObject]@{
+                    ComputerName = $_.Location
+                    Error        = "Job not finished within {0} minutes with job state '{1}'" -f $jobTimeOutInMinutes, $_.State
+                }
+            }
         }
         #endregion
 
