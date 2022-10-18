@@ -296,8 +296,9 @@ Process {
         #endregion
 
         #region Get current BitLocker volumes and Tpm status
-        $M = "Get BitLocker and TPM status from {0} computer{1}" -f 
-        $computers.Count, $(if ($computers.Count -ne 1) { 's' })
+        $M = "Get BitLocker and TPM status from {0} computer{1} at {2}" -f 
+        $computers.Count, $(if ($computers.Count -ne 1) { 's' }),
+        $((Get-Date).ToString('HH:mm:ss'))
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
         $params = @{
@@ -308,7 +309,14 @@ Process {
         }
         $jobs = Invoke-Command @params
 
+        $M = 'Wait for jobs to finish'
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+
         $jobResults = $jobs | Wait-Job | Receive-Job
+
+        $M = 'Jobs to finished at {0}' -f 
+        $((Get-Date).ToString('HH:mm:ss'))
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
         #endregion
 
         #region Remove errors
