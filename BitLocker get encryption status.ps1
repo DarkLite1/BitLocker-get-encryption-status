@@ -341,28 +341,33 @@ Process {
         $M = 'Wait for all jobs to finish'
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-        $job.result += if ($job.started) {
+        if ($job.started) {
+            #region Wait for jobs to finish
             $null = $job.started | Wait-Job -Timeout $jobTimeOutInSeconds
-            $job.started | Receive-Job
+
+            $job.result += $job.started | Receive-Job
 
             $M = 'Jobs total duration {0:hh}:{0:mm}:{0:ss}:{0:fff}' -f 
             (New-TimeSpan -Start $job.startTime -End (Get-Date))
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
-        }
+            #endregion
 
-        if ($job.started.Count -ne $job.result.Count) {
-            $M = "Started a total of {0} jobs but only {1} finished within {2} minutes." -f 
-            $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
-            Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
-            
-            $data.Errors.Current += $job.started | Where-Object { 
-                $job.result.ComputerName -notContains $_.Location 
-            } | ForEach-Object {
-                [PSCustomObject]@{
-                    ComputerName = $_.Location
-                    Error        = "Job not finished within {0} minutes with job state '{1}'" -f $jobTimeOutInMinutes, $_.State
+            #region Time out errors
+            if ($job.started.Count -ne $job.result.Count) {
+                $M = "Started a total of {0} jobs but only {1} finished within {2} minutes." -f 
+                $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
+                Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
+                
+                $data.Errors.Current += $job.started | Where-Object { 
+                    $job.result.ComputerName -notContains $_.Location 
+                } | ForEach-Object {
+                    [PSCustomObject]@{
+                        ComputerName = $_.Location
+                        Error        = "Job not finished within {0} minutes with job state '{1}'" -f $jobTimeOutInMinutes, $_.State
+                    }
                 }
             }
+            #endregion
         }
         #endregion
 
