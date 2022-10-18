@@ -1,6 +1,7 @@
 #Requires -Version 5.1
 #Requires -Modules ActiveDirectory, ImportExcel
 #Requires -Modules Toolbox.ActiveDirectory, Toolbox.HTML, Toolbox.EventLog
+#Requires -Modules Toolbox.Remoting
 
 <#
     .SYNOPSIS
@@ -296,27 +297,46 @@ Process {
         #endregion
 
         #region Get current BitLocker volumes and Tpm status
+        $jobs = @()
+        $jobStartTime = Get-Date
+
         $M = "Get BitLocker and TPM status from {0} computer{1} at {2}" -f 
         $computers.Count, $(if ($computers.Count -ne 1) { 's' }),
-        $((Get-Date).ToString('HH:mm:ss'))
+        $($jobStartTime.ToString('HH:mm:ss'))
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-        $params = @{
-            ScriptBlock   = $scriptBlock
-            ComputerName  = $computers.Name
-            ThrottleLimit = $MaxConcurrentJobs
-            AsJob         = $true
+        $counter = @{
+            Current = 0
+            Total   = $computers.Count
         }
-        $jobs = Invoke-Command @params
 
-        $M = 'Wait for jobs to finish'
+        foreach ($computerName in $computers.Name) {
+            $counter.Current++
+
+            $M = "Start job {0} out of {1} on computer '{2}'" -f 
+            $counter.Current, $counter.Total, $computerName
+            Write-Verbose $M
+
+            $params = @{
+                ScriptBlock  = $scriptBlock
+                ComputerName = $computerName
+                AsJob        = $true
+            }
+            $jobs += Invoke-Command @params
+            
+            Wait-MaxRunningJobsHC -Name $jobs -MaxThreads $MaxConcurrentJobs
+        }
+
+        $M = 'Wait for all jobs to finish'
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-        $jobResults = $jobs | Wait-Job | Receive-Job
+        $jobResults = if ($jobs) {
+            $jobs | Wait-Job | Receive-Job
 
-        $M = 'Jobs to finished at {0}' -f 
-        $((Get-Date).ToString('HH:mm:ss'))
-        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            $M = 'Jobs total duration {0:hh}:{0:mm}:{0:ss}:{0:fff}' -f 
+            (New-TimeSpan -Start $jobStartTime -End (Get-Date))
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+        }
         #endregion
 
         #region Remove errors
