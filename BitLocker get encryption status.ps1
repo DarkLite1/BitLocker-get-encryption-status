@@ -146,18 +146,20 @@ Begin {
                     $SendMailHeader = $ScriptName
                 }
             }            
-            if (-not ($MaxConcurrentJobs = $file.Jobs.MaxConcurrent)) {
-                $MaxConcurrentJobs = 30
+            if (-not ($maxConcurrentJobs = $file.Jobs.MaxConcurrent)) {
+                $maxConcurrentJobs = 30
             }
-            if ($MaxConcurrentJobs -isNot [int]) {
-                throw "The value '$MaxConcurrentJobs' in 'Jobs.MaxConcurrent' is not a number."
+            if ($maxConcurrentJobs -isNot [int]) {
+                throw "The value '$maxConcurrentJobs' in 'Jobs.MaxConcurrent' is not a number."
             }
-            if (-not ($JobTimeOut = $file.Jobs.TimeOutInMinutes)) {
-                $JobTimeOut = 30
+            if (-not ($jobTimeOutInMinutes = $file.Jobs.TimeOutInMinutes)) {
+                $jobTimeOutInMinutes = 30
             }
-            if ($JobTimeOut -isNot [int]) {
-                throw "The value '$JobTimeOut' in 'jobs.TimeOutInMinutes' is not a number."
+            if ($jobTimeOutInMinutes -isNot [int]) {
+                throw "The value '$jobTimeOutInMinutes' in 'jobs.TimeOutInMinutes' is not a number."
             }
+
+            $jobTimeOutInSeconds = $jobTimeOutInMinutes * 60
             #endregion
         }
         catch {
@@ -303,24 +305,27 @@ Process {
         #endregion
 
         #region Get current BitLocker volumes and Tpm status
-        $jobs = @()
-        $jobStartTime = Get-Date
+        $job = @{
+            started   = @()
+            result    = @()
+            startTime = Get-Date
+        }
 
         $M = "Get BitLocker and TPM status from {0} computer{1} at {2}" -f 
         $computers.Count, $(if ($computers.Count -ne 1) { 's' }),
-        $($jobStartTime.ToString('HH:mm:ss'))
+        $($job.startTime.ToString('HH:mm:ss'))
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
         $counter = @{
-            Current = 0
-            Total   = $computers.Count
+            current = 0
+            total   = $computers.Count
         }
 
         foreach ($computerName in $computers.Name) {
-            $counter.Current++
+            $counter.current++
 
             $M = "Start job {0} out of {1} on computer '{2}'" -f 
-            $counter.Current, $counter.Total, $computerName
+            $counter.current, $counter.total, $computerName
             Write-Verbose $M
 
             $params = @{
@@ -328,20 +333,26 @@ Process {
                 ComputerName = $computerName
                 AsJob        = $true
             }
-            $jobs += Invoke-Command @params
+            $job.started += Invoke-Command @params
             
-            Wait-MaxRunningJobsHC -Name $jobs -MaxThreads $MaxConcurrentJobs
+            Wait-MaxRunningJobsHC -Name $job.started -MaxThreads $maxConcurrentJobs
         }
 
         $M = 'Wait for all jobs to finish'
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-        $jobResults = if ($jobs) {
-            $jobs | Wait-Job | Receive-Job
+        $job.result += if ($job.started) {
+            $job.started | Wait-Job -Timeout $jobTimeOutInSeconds | Receive-Job
 
             $M = 'Jobs total duration {0:hh}:{0:mm}:{0:ss}:{0:fff}' -f 
-            (New-TimeSpan -Start $jobStartTime -End (Get-Date))
+            (New-TimeSpan -Start $job.startTime -End (Get-Date))
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+        }
+
+        if ($job.started.Count -ne $job.result.Count) {
+            $M = "Started a total of {0} jobs but only {1} finished within {2} minutes. Unfinished jobs are disregarded." -f 
+            $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
+            Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
         }
         #endregion
 
@@ -355,7 +366,7 @@ Process {
         #region BitLocker volumes
 
         #region Convert job objects
-        $data.BitLockerVolumes.Current += foreach ($jobResult in $jobResults) {
+        $data.BitLockerVolumes.Current += foreach ($jobResult in $job.result) {
             $jobResult.BitLocker.Volumes |
             Select-Object -Property @{
                 Name       = 'ComputerName';
@@ -486,7 +497,7 @@ Process {
         #region Convert job objects
         $data.TpmStatuses.Current += foreach (
             $jobResult in 
-            $jobResults | Where-Object { $_.Tpm } 
+            $job.result | Where-Object { $_.Tpm } 
         ) {
             $jobResult | Select-Object -Property @{
                 Name       = 'ComputerName';
@@ -568,7 +579,7 @@ Process {
         #region Errors
         
         #region Convert job objects
-        $data.Errors.Current += $jobResults | Where-Object { $_.Error } | 
+        $data.Errors.Current += $job.result | Where-Object { $_.Error } | 
         Select-Object -Property @{
             Name       = 'ComputerName';
             Expression = { $_.ComputerName }

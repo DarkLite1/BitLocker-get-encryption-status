@@ -730,7 +730,7 @@ Describe 'when the script' {
                 $mailParams.Subject | Should -Be $testMail.Subject
                 $mailParams.Message | Should -BeLike $testMail.Message
                 $mailParams.Attachments | Should -Be $testMail.Attachments
-            }
+            } -Tag test
             It 'Send-MailHC is called once' {
                 Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
                     ($Header -eq $testMail.Header) -and
