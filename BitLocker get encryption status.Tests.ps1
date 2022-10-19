@@ -2,6 +2,12 @@
 #Requires -Version 5.1
 
 BeforeAll {
+    Get-Job | Remove-Job -Force -EA Ignore
+    
+    $realCmdLet = @{
+        InvokeCommand = Get-Command Invoke-Command
+    }
+
     $testOutParams = @{
         FilePath = (New-Item 'TestDrive:/Test.json' -ItemType File).FullName
         Encoding = 'utf8'
@@ -276,7 +282,9 @@ Describe 'when the script runs for the first time' {
             }
         }
         Mock Invoke-Command {
-            $testData
+            & $realCmdLet.InvokeCommand -Scriptblock { 
+                $using:testData
+            } -AsJob -ComputerName $env:COMPUTERNAME
         }
 
         $testJsonFile = @{
@@ -307,7 +315,7 @@ Describe 'when the script runs for the first time' {
             Should -Invoke Invoke-Command -Scope Describe -Times 1 -Exactly -ParameterFilter {
                 ($ScriptBlock) -and
                 ($ComputerName -eq $testData[0].ComputerName) -and
-                ($ErrorAction -eq 'Ignore')
+                ($AsJob)
             }
         }
     }
@@ -474,7 +482,11 @@ Describe 'when the script' {
             }
         }
         Mock Invoke-Command {
-            $testData
+            & $realCmdLet.InvokeCommand -Scriptblock { 
+                $using:testData
+            } -AsJob -ComputerName $env:COMPUTERNAME
+        } -ParameterFilter {
+            $ComputerName -eq $testData[0].ComputerName
         }
 
         $testJsonFile = @{
@@ -543,7 +555,11 @@ Describe 'when the script' {
                 }
             }
             Mock Invoke-Command {
-                $testDataNew
+                & $realCmdLet.InvokeCommand -Scriptblock { 
+                    $using:testDataNew
+                } -AsJob -ComputerName $env:COMPUTERNAME
+            } -ParameterFilter {
+                $ComputerName -eq $testDataNew[0].ComputerName
             }
 
             $testJsonFile = @{
@@ -572,20 +588,18 @@ Describe 'when the script' {
                 }
             }
             It 'call Invoke-Command with the correct arguments' {
-                Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly 
+                Should -Invoke Invoke-Command -Scope Describe -Times 3 -Exactly 
     
-                Should -Invoke Invoke-Command -Scope Describe -Times 1 -Exactly -ParameterFilter {
+                Should -Invoke Invoke-Command -Scope Describe -Times 2 -Exactly -ParameterFilter {
                     ($ScriptBlock) -and
-                    ($ComputerName[0] -eq $testData[0].ComputerName) -and
-                    (-not $ComputerName[1]) -and
-                    ($ErrorAction -eq 'Ignore')
+                    ($ComputerName -eq $testData[0].ComputerName) -and
+                    ($AsJob)
                 }
-    
+
                 Should -Invoke Invoke-Command -Scope Describe -Times 1 -Exactly -ParameterFilter {
                     ($ScriptBlock) -and
-                    ($ComputerName[0] -eq $testData[0].ComputerName) -and
-                    ($ComputerName[1] -eq $testDataNew[0].ComputerName) -and
-                    ($ErrorAction -eq 'Ignore')
+                    ($ComputerName -eq $testDataNew[0].ComputerName) -and
+                    ($AsJob)
                 }
             }
         }
@@ -716,7 +730,7 @@ Describe 'when the script' {
                 $mailParams.Subject | Should -Be $testMail.Subject
                 $mailParams.Message | Should -BeLike $testMail.Message
                 $mailParams.Attachments | Should -Be $testMail.Attachments
-            }
+            } -Tag test
             It 'Send-MailHC is called once' {
                 Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
                     ($Header -eq $testMail.Header) -and
@@ -730,4 +744,4 @@ Describe 'when the script' {
             }
         }
     }
-} -Tag test
+}

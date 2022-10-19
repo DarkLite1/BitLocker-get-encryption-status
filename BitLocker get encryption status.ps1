@@ -1,6 +1,7 @@
 #Requires -Version 5.1
 #Requires -Modules ActiveDirectory, ImportExcel
 #Requires -Modules Toolbox.ActiveDirectory, Toolbox.HTML, Toolbox.EventLog
+#Requires -Modules Toolbox.Remoting
 
 <#
     .SYNOPSIS
@@ -315,13 +316,69 @@ Process {
         $($job.startTime.ToString('HH:mm:ss'))
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-        $params = @{
-            ScriptBlock   = $scriptBlock
-            ComputerName  = $computers.Name
-            ErrorAction   = 'Ignore'
-            ThrottleLimit = $maxConcurrentJobs
+        $counter = @{
+            current = 0
+            total   = $computers.Count
         }
-        $job.result += Invoke-Command @params
+
+        foreach ($computerName in $computers.Name) {
+            $counter.current++
+
+            $M = "Start job {0} out of {1} on computer '{2}'" -f 
+            $counter.current, $counter.total, $computerName
+            Write-Verbose $M
+
+            $params = @{
+                ScriptBlock  = $scriptBlock
+                ComputerName = $computerName
+                AsJob        = $true
+            }
+            $job.started += Invoke-Command @params
+            
+            Wait-MaxRunningJobsHC -Name $job.started -MaxThreads $maxConcurrentJobs
+        }
+
+        $M = 'Wait for all jobs to finish'
+        Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+
+        if ($job.started) {
+            #region Wait for jobs to finish
+            $null = $job.started | Wait-Job -Timeout $jobTimeOutInSeconds
+
+            $job.result += $job.started | Receive-Job
+
+            $M = 'Jobs total duration {0:hh}:{0:mm}:{0:ss}:{0:fff}' -f 
+            (New-TimeSpan -Start $job.startTime -End (Get-Date))
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            #endregion
+
+            #region Time out errors
+            if ($job.started.Count -ne $job.result.Count) {
+                $M = "Started a total of {0} jobs but only {1} finished within {2} minutes." -f 
+                $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
+                Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
+                
+                #region Collect job errors that are not connection errors
+                $data.Errors.Current += $job.started | Where-Object { 
+                    ($job.result.ComputerName -notContains $_.Location) -and
+                    ($_.ChildJobs[0].JobStateInfo.Reason.GetType().Name -notLike 'PSRemotingTransportException')
+                } | ForEach-Object {
+                    [PSCustomObject]@{
+                        ComputerName = $_.Location
+                        Error        = "Job not finished within {0} minutes with job state '{1}'" -f $jobTimeOutInMinutes, $_.State
+                    }
+                }
+                #endregion
+            }
+            #endregion
+        }
+        #endregion
+
+        #region Remove errors
+
+        # not interested in unhandled errors as they are connection errors
+        # of clients that are offline or where we have no permissions
+        $Error.Clear()
         #endregion
 
         #region BitLocker volumes
