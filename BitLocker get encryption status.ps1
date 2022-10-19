@@ -351,26 +351,6 @@ Process {
             (New-TimeSpan -Start $job.startTime -End (Get-Date))
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
             #endregion
-
-            #region Time out errors
-            if ($job.started.Count -ne $job.result.Count) {
-                $M = "Started a total of {0} jobs but only {1} finished within {2} minutes." -f 
-                $job.started.Count, $job.result.Count, $jobTimeOutInMinutes
-                Write-Verbose $M; Write-EventLog @EventWarnParams -Message $M
-                
-                #region Collect job errors that are not connection errors
-                $data.Errors.Current += $job.started | Where-Object { 
-                    ($job.result.ComputerName -notContains $_.Location) -and
-                    ($_.ChildJobs[0].JobStateInfo.Reason.GetType().Name -notLike 'PSRemotingTransportException')
-                } | ForEach-Object {
-                    [PSCustomObject]@{
-                        ComputerName = $_.Location
-                        Error        = "Job not finished within {0} minutes with job state '{1}'" -f $jobTimeOutInMinutes, $_.State
-                    }
-                }
-                #endregion
-            }
-            #endregion
         }
         #endregion
 
