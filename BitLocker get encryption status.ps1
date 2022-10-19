@@ -356,11 +356,6 @@ Process {
 
         #region Remove errors
 
-        # not interested in unhandled errors as they are connection errors
-        # of clients that are offline or where we have no permissions
-        $Error.Clear()
-        #endregion
-
         #region BitLocker volumes
 
         #region Convert job objects
