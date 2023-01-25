@@ -396,18 +396,45 @@ Process {
                 }
             },
             @{
-                Name       = 'KeyProtector';
+                Name       = 'KeyProtectorTpm';
+                Expression = {
+                    $isTpmKeyProtected = $false
+                    $mountPoint = $_.MountPoint
+                    $jobResult.BitLocker.Recovery | Where-Object {
+                        ($_.MountPoint -eq $mountPoint) -and
+                        ($_.ProtectorType -eq 'Tpm')
+                    } | ForEach-Object { $isTpmKeyProtected = $true }
+                    $isTpmKeyProtected 
+                }
+            },
+            @{
+                Name       = 'KeyProtectorRecoveryPassword';
                 Expression = {
                     $mountPoint = $_.MountPoint
-                ($jobResult.BitLocker.Recovery | Where-Object {
-                        $_.MountPoint -eq $mountPoint
+                    (($jobResult.BitLocker.Recovery | Where-Object {
+                        ($_.MountPoint -eq $mountPoint) -and
+                        ($_.ProtectorType -eq 'RecoveryPassword')
+                    }).RecoveryPassword
+                    ) -join ', '
+                }
+            },
+            @{
+                Name       = 'KeyProtectorOther';
+                Expression = {
+                    $mountPoint = $_.MountPoint
+                    ($jobResult.BitLocker.Recovery | Where-Object {
+                        ($_.MountPoint -eq $mountPoint) -and
+                        ($_.ProtectorType -ne 'RecoveryPassword') -and
+                        ($_.ProtectorType -ne 'Tpm')
                     } | ForEach-Object {
-                        '{0}{1}' -f $_.ProtectorType, $(
-                            if ($_.RecoveryPassword) {
-                                ': {0}' -f $_.RecoveryPassword
-                            }
-                        )
-                    }) -join ', '
+                        if ($_.RecoveryPassword) {
+                            '{0}: {1}' -f $_.ProtectorType , $_.RecoveryPassword
+                        }
+                        else {
+                            '{0}' -f $_.ProtectorType 
+                        }
+                    }
+                    ) -join ', '
                 }
             }
         }

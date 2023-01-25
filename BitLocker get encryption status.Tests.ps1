@@ -269,6 +269,11 @@ Describe 'when the script runs for the first time' {
                             MountPoint       = 'C:'
                             ProtectorType    = 'RecoveryPassword'
                             RecoveryPassword = 'abc'
+                        },
+                        @{
+                            MountPoint       = 'C:'
+                            ProtectorType    = 'foo'
+                            RecoveryPassword = 'bar'
                         }
                     )
                 }
@@ -324,15 +329,17 @@ Describe 'when the script runs for the first time' {
             BeforeAll {
                 $testExportedExcelRows = @(
                     @{
-                        ComputerName = $testData[0].ComputerName
-                        Date         = $testData[0].Date
-                        Drive        = $testData[0].BitLocker.Volumes[0].MountPoint
-                        Size         = '237'
-                        Encrypted    = '1' 
+                        ComputerName                 = $testData[0].ComputerName
+                        Date                         = $testData[0].Date
+                        Drive                        = $testData[0].BitLocker.Volumes[0].MountPoint
+                        Size                         = '237'
+                        Encrypted                    = '1' 
                         # Excel stores percentages divided by 100 '100 %'
-                        VolumeStatus = $testData[0].BitLocker.Volumes[0].VolumeStatus
-                        Status       = 'Protection ON (Unlocked)'
-                        KeyProtector = 'Tpm, RecoveryPassword: abc'
+                        VolumeStatus                 = $testData[0].BitLocker.Volumes[0].VolumeStatus
+                        Status                       = 'Protection ON (Unlocked)'
+                        KeyProtectorRecoveryPassword = 'abc'
+                        KeyProtectorTpm              = $true
+                        KeyProtectorOther            = 'foo: bar'
                     }
                 )
     
@@ -358,7 +365,12 @@ Describe 'when the script runs for the first time' {
                     $actualRow.Encrypted | Should -Be $testRow.Encrypted
                     $actualRow.VolumeStatus | Should -Be $testRow.VolumeStatus
                     $actualRow.Status | Should -Be $testRow.Status
-                    $actualRow.KeyProtector | Should -Be $testRow.KeyProtector
+                    $actualRow.KeyProtectorRecoveryPassword | 
+                    Should -Be $testRow.KeyProtectorRecoveryPassword
+                    $actualRow.KeyProtectorTpm | 
+                    Should -Be $testRow.KeyProtectorTpm
+                    $actualRow.KeyProtectorOther | 
+                    Should -Be $testRow.KeyProtectorOther
                 }
             }
         }
@@ -608,26 +620,30 @@ Describe 'when the script' {
                 BeforeAll {
                     $testExportedExcelRows = @(
                         @{
-                            ComputerName = $testData[0].ComputerName
-                            Date         = $testData[0].Date
-                            Drive        = $testData[0].BitLocker.Volumes[0].MountPoint
-                            Size         = '237'
-                            Encrypted    = '1' 
+                            ComputerName                 = $testData[0].ComputerName
+                            Date                         = $testData[0].Date
+                            Drive                        = $testData[0].BitLocker.Volumes[0].MountPoint
+                            Size                         = '237'
+                            Encrypted                    = '1' 
                             # Excel stores percentages divided by 100 '100 %'
-                            VolumeStatus = $testData[0].BitLocker.Volumes[0].VolumeStatus
-                            Status       = 'Protection ON (Unlocked)'
-                            KeyProtector = 'Tpm, RecoveryPassword: abc'
+                            VolumeStatus                 = $testData[0].BitLocker.Volumes[0].VolumeStatus
+                            Status                       = 'Protection ON (Unlocked)'
+                            KeyProtectorRecoveryPassword = 'abc'
+                            KeyProtectorTpm              = $true
+                            KeyProtectorOther            = ''
                         },
                         @{
-                            ComputerName = $testDataNew[0].ComputerName
-                            Date         = $testDataNew[0].Date
-                            Drive        = $testDataNew[0].BitLocker.Volumes[0].MountPoint
-                            Size         = '200'
-                            Encrypted    = '0.5'
+                            ComputerName                 = $testDataNew[0].ComputerName
+                            Date                         = $testDataNew[0].Date
+                            Drive                        = $testDataNew[0].BitLocker.Volumes[0].MountPoint
+                            Size                         = '200'
+                            Encrypted                    = '0.5'
                             # Excel stores percentages divided by 100 '50 %'
-                            VolumeStatus = $testDataNew[0].BitLocker.Volumes[0].VolumeStatus
-                            Status       = 'Protection ON (Unlocked)'
-                            KeyProtector = 'Tpm, RecoveryPassword: xyz'
+                            VolumeStatus                 = $testDataNew[0].BitLocker.Volumes[0].VolumeStatus
+                            Status                       = 'Protection ON (Unlocked)'
+                            KeyProtectorRecoveryPassword = 'xyz'
+                            KeyProtectorTpm              = $true
+                            KeyProtectorOther            = ''
                         }
                     )
         
@@ -638,7 +654,7 @@ Describe 'when the script' {
                 }
                 It 'with the correct total rows' {
                     $actual | Should -HaveCount $testExportedExcelRows.Count
-                } -Tag test
+                }
                 It 'with the correct data in the rows' {
                     foreach ($testRow in $testExportedExcelRows) {
                         $actualRow = $actual | Where-Object {
@@ -651,9 +667,14 @@ Describe 'when the script' {
                         $actualRow.Encrypted | Should -Be $testRow.Encrypted
                         $actualRow.VolumeStatus | Should -Be $testRow.VolumeStatus
                         $actualRow.Status | Should -Be $testRow.Status
-                        $actualRow.KeyProtector | Should -Be $testRow.KeyProtector
+                        $actualRow.KeyProtectorRecoveryPassword | 
+                        Should -Be $testRow.KeyProtectorRecoveryPassword
+                        $actualRow.KeyProtectorTpm | 
+                        Should -Be $testRow.KeyProtectorTpm
+                        $actualRow.KeyProtectorOther | 
+                        Should -Be $testRow.KeyProtectorOther
                     }
-                }
+                } -Tag test
             }
             Context "with worksheet 'TPM'" {
                 BeforeAll {
@@ -730,7 +751,7 @@ Describe 'when the script' {
                 $mailParams.Subject | Should -Be $testMail.Subject
                 $mailParams.Message | Should -BeLike $testMail.Message
                 $mailParams.Attachments | Should -Be $testMail.Attachments
-            } -Tag test
+            }
             It 'Send-MailHC is called once' {
                 Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
                     ($Header -eq $testMail.Header) -and
