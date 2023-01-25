@@ -240,15 +240,15 @@ Describe 'when the script runs for the first time' {
     BeforeAll {
         $testData = @(
             [PSCustomObject]@{
-                ComputerName = 'PC1'
-                Tpm          = @{
+                ComputerName  = 'PC1'
+                Tpm           = @{
                     TpmActivated = $true
                     TpmPresent   = $true
                     TpmEnabled   = $true
                     TpmReady     = $true
                     TpmOwned     = $true
                 }
-                BitLocker    = @{
+                BitLocker     = @{
                     Volumes  = @(
                         @{
                             MountPoint           = 'C:'
@@ -277,8 +277,9 @@ Describe 'when the script runs for the first time' {
                         }
                     )
                 }
-                Error        = $null
-                Date         = Get-Date
+                Error         = $null
+                Date          = Get-Date
+                PendingReboot = $true
             }
         )
         Mock Get-ADComputer {
@@ -337,6 +338,7 @@ Describe 'when the script runs for the first time' {
                         # Excel stores percentages divided by 100 '100 %'
                         VolumeStatus                 = $testData[0].BitLocker.Volumes[0].VolumeStatus
                         Status                       = 'Protection ON (Unlocked)'
+                        PendingReboot                = $true
                         KeyProtectorRecoveryPassword = 'abc'
                         KeyProtectorTpm              = $true
                         KeyProtectorOther            = 'foo: bar'
@@ -365,6 +367,7 @@ Describe 'when the script runs for the first time' {
                     $actualRow.Encrypted | Should -Be $testRow.Encrypted
                     $actualRow.VolumeStatus | Should -Be $testRow.VolumeStatus
                     $actualRow.Status | Should -Be $testRow.Status
+                    $actualRow.PendingReboot | Should -Be $testRow.PendingReboot
                     $actualRow.KeyProtectorRecoveryPassword | 
                     Should -Be $testRow.KeyProtectorRecoveryPassword
                     $actualRow.KeyProtectorTpm | 
@@ -522,15 +525,15 @@ Describe 'when the script' {
         BeforeAll {
             $testDataNew = @(
                 [PSCustomObject]@{
-                    ComputerName = 'PC2'
-                    Tpm          = @{
+                    ComputerName  = 'PC2'
+                    Tpm           = @{
                         TpmActivated = $true
                         TpmPresent   = $false
                         TpmEnabled   = $true
                         TpmReady     = $true
                         TpmOwned     = $true
                     }
-                    BitLocker    = @{
+                    BitLocker     = @{
                         Volumes  = @(
                             @{
                                 MountPoint           = 'D:'
@@ -554,8 +557,9 @@ Describe 'when the script' {
                             }
                         )
                     }
-                    Error        = $null
-                    Date         = Get-Date
+                    Error         = $null
+                    Date          = Get-Date
+                    PendingReboot = $false
                 }
             )
             Mock Get-ADComputer {
@@ -628,6 +632,7 @@ Describe 'when the script' {
                             # Excel stores percentages divided by 100 '100 %'
                             VolumeStatus                 = $testData[0].BitLocker.Volumes[0].VolumeStatus
                             Status                       = 'Protection ON (Unlocked)'
+                            PendingReboot                = $null
                             KeyProtectorRecoveryPassword = 'abc'
                             KeyProtectorTpm              = $true
                             KeyProtectorOther            = ''
@@ -641,6 +646,7 @@ Describe 'when the script' {
                             # Excel stores percentages divided by 100 '50 %'
                             VolumeStatus                 = $testDataNew[0].BitLocker.Volumes[0].VolumeStatus
                             Status                       = 'Protection ON (Unlocked)'
+                            PendingReboot                = $false
                             KeyProtectorRecoveryPassword = 'xyz'
                             KeyProtectorTpm              = $true
                             KeyProtectorOther            = ''
@@ -667,6 +673,7 @@ Describe 'when the script' {
                         $actualRow.Encrypted | Should -Be $testRow.Encrypted
                         $actualRow.VolumeStatus | Should -Be $testRow.VolumeStatus
                         $actualRow.Status | Should -Be $testRow.Status
+                        $actualRow.PendingReboot | Should -Be $testRow.PendingReboot
                         $actualRow.KeyProtectorRecoveryPassword | 
                         Should -Be $testRow.KeyProtectorRecoveryPassword
                         $actualRow.KeyProtectorTpm | 

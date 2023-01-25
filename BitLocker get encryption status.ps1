@@ -63,14 +63,15 @@ Begin {
     $scriptBlock = {
         try {
             $result = [PSCustomObject]@{
-                ComputerName = $env:COMPUTERNAME
-                Tpm          = $null
-                BitLocker    = @{
+                ComputerName  = $env:COMPUTERNAME
+                Tpm           = $null
+                BitLocker     = @{
                     Volumes  = @()
                     Recovery = @()
                 }
-                Error        = $null
-                Date         = Get-Date
+                Error         = $null
+                Date          = Get-Date
+                PendingReboot = $false
             }
     
             $result.Tpm = Get-Tpm -ErrorAction Ignore
@@ -89,6 +90,18 @@ Begin {
                         RecoveryPassword = $_.RecoveryPassword
                     }
                 }
+            }
+
+            $params = @{
+                Namespace = 'ROOT/CIMV2/Security/MicrosoftVolumeEncryption' 
+                ClassName = 'Win32_EncryptableVolume'
+                Filter    = "DriveLetter='C:'"
+            }
+            $encryptableVolume = Get-CimInstance @params | 
+            Invoke-CimMethod -MethodName 'GetSuspendCount'
+
+            if ($encryptableVolume.SuspendCount -ge 1 ) {
+                $result.PendingReboot = $true
             }
         }
         catch {
@@ -396,6 +409,10 @@ Process {
                 }
             },
             @{
+                Name       = 'PendingReboot';
+                Expression = { $jobResult.PendingReboot }
+            },
+            @{
                 Name       = 'KeyProtectorTpm';
                 Expression = {
                     $isTpmKeyProtected = $false
@@ -414,7 +431,7 @@ Process {
                     (($jobResult.BitLocker.Recovery | Where-Object {
                         ($_.MountPoint -eq $mountPoint) -and
                         ($_.ProtectorType -eq 'RecoveryPassword')
-                    }).RecoveryPassword
+                        }).RecoveryPassword
                     ) -join ', '
                 }
             },
