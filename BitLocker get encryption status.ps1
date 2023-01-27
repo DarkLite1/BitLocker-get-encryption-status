@@ -86,8 +86,8 @@ Begin {
                 ForEach-Object {
                     [PSCustomObject]@{
                         MountPoint       = $volume.MountPoint
-                        ProtectorType    = $_.KeyProtectorType
-                        RecoveryPassword = $_.RecoveryPassword
+                        ProtectorType    = [String]$_.KeyProtectorType
+                        RecoveryPassword = [String]$_.RecoveryPassword
                     }
                 }
             }
