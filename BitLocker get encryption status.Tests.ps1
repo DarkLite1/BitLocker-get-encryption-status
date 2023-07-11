@@ -15,9 +15,10 @@ BeforeAll {
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
     $testParams = @{
-        ScriptName = 'Test (Brecht)'
-        ImportFile = $testOutParams.FilePath
-        LogFolder  = 'TestDrive:/log'
+        ScriptName  = 'Test (Brecht)'
+        ImportFile  = $testOutParams.FilePath
+        LogFolder   = 'TestDrive:/log'
+        ScriptAdmin = 'admin@contoso.com'
     }
 
     Mock Get-ADComputer
@@ -35,7 +36,7 @@ Describe 'the mandatory parameters are' {
 Describe 'send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
-            ($To -eq $ScriptAdmin) -and ($Priority -eq 'High') -and 
+            ($To -eq $testParams.ScriptAdmin) -and ($Priority -eq 'High') -and 
             ($Subject -eq 'FAILURE')
         }    
     }
