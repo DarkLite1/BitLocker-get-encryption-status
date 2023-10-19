@@ -1,5 +1,5 @@
+#Requires -Version 7
 #Requires -Modules Pester
-#Requires -Version 5.1
 
 BeforeAll {
     Get-Job | Remove-Job -Force -EA Ignore
