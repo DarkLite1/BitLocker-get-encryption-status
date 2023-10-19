@@ -165,13 +165,19 @@ Begin {
             if (-not ($maxConcurrentJobs = $file.Jobs.MaxConcurrent)) {
                 $maxConcurrentJobs = 30
             }
-            if ($maxConcurrentJobs -isNot [int]) {
+            try {
+                $maxConcurrentJobs = [int]$maxConcurrentJobs
+            }
+            catch {
                 throw "The value '$maxConcurrentJobs' in 'Jobs.MaxConcurrent' is not a number."
             }
             if (-not ($jobTimeOutInMinutes = $file.Jobs.TimeOutInMinutes)) {
                 $jobTimeOutInMinutes = 30
             }
-            if ($jobTimeOutInMinutes -isNot [int]) {
+            try {
+                $jobTimeOutInMinutes = [int]$jobTimeOutInMinutes   
+            }
+            catch {
                 throw "The value '$jobTimeOutInMinutes' in 'jobs.TimeOutInMinutes' is not a number."
             }
 
